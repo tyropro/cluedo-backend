@@ -21,6 +21,15 @@ struct GameState {
     solution: Option<Solution>,
 }
 
+impl GameState {
+    fn new() -> Self {
+        GameState {
+            players: Vec::new(),
+            solution: None,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize)]
 struct Solution {
     suspect: Suspect,
@@ -133,12 +142,18 @@ fn get_player(
 fn create_game(
     game_state: &State<Mutex<GameState>>,
 ) -> Result<(Status, (ContentType, String)), Status> {
-    let mut rng = rng();
     let mut state = game_state.lock().expect("Failed to lock solution");
+
+    match state.solution {
+        Some(_) => (),
+        None => return Err(Status::BadRequest),
+    }
 
     if state.players.len() < 2 {
         return Err(Status::BadRequest);
     }
+
+    let mut rng = rng();
 
     let suspects: Vec<Suspect> = Suspect::iter().collect();
     let weapons: Vec<Weapon> = Weapon::iter().collect();
@@ -203,6 +218,21 @@ fn create_game(
     ))
 }
 
+#[delete("/game")]
+fn delete_game(game_state: &State<Mutex<GameState>>) -> Status {
+    let mut state = game_state.lock().expect("Failed to lock solution");
+
+    match state.solution {
+        Some(_) => (),
+        None => return Status::BadRequest,
+    }
+
+    state.players = Vec::new();
+    state.solution = None;
+
+    Status::NoContent
+}
+
 #[launch]
 fn rocket() -> _ {
     rocket::build()
@@ -213,12 +243,10 @@ fn rocket() -> _ {
                 delete_player,
                 get_players,
                 get_player,
-                create_game
+                create_game,
+                delete_game
             ],
         )
-        .manage(Mutex::new(GameState {
-            players: Vec::new(),
-            solution: None,
-        }))
+        .manage(Mutex::new(GameState::new()))
     // .manage(Won { 0: -1 })
 }
